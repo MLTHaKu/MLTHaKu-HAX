@@ -94,7 +94,7 @@
 * MiraLaTijera - Developer of MLTHaKu and betatester (PS VITA 1000 with SD2VITA).
 * Darkmet98 - Bugfixes, stability improvements, betatester (PS VITA 1000 with SD2VITA), maintainer of Github y Webmaster.
 
-# Thanks ti
+# Thanks to
 * Team Molecule for Henkaku, TaiHen and Henkaku Ensō.
 * Xyzz for SD2Vita and the GameSD plugin.
 * Yifanlu for usbmc.
