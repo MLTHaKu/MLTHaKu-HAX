@@ -20,6 +20,7 @@
 #include <psp2/appmgr.h>
 #include "compress.h"
 #include "molecule_logo.h"
+int needreboot = 1;
 
 #include "../build/version.c"
 #include "../plugin/henkaku.h"
@@ -30,6 +31,8 @@
 #define TAIHEN_SKPRX_FILE "ur0:tai/taihen.skprx"
 #define HENKAKU_SUPRX_FILE "ur0:tai/henkaku.suprx"
 #define HENKAKU_SKPRX_FILE "ur0:tai/henkaku.skprx"
+#define MEMORY_SKPRX_FILE "ur0:tai/memory.skprx"
+#define GAMESD_SKPRX_FILE "ur0:tai/gamesd.skprx"
 
 #if RELEASE
 #define LOG(...)
@@ -50,13 +53,15 @@ const char taihen_config_updated_msg[] =
 	"# the old entries above.\n";
 
 const char taihen_config_header[] = 
-	"# For users plugins, you must refresh taiHEN from HENkaku Settings for\n"
+	"# For users plugins, you must refresh taiHEN from MLTHaKu Settings for\n"
 	"# changes to take place.\n"
 	"# For kernel plugins, you must reboot for changes to take place.\n";
 
 const char taihen_config[] = 
 	"*KERNEL\n"
 	"# henkaku.skprx is hard-coded to load and is not listed here\n"
+	"# memory.skprx is usbmc.skprx (PS TV) or gamesd.skprx (PS VITA)\n"
+	MEMORY_SKPRX_FILE "\n"
 	"*main\n"
 	"# main is a special titleid for SceShell\n"
 	HENKAKU_SUPRX_FILE "\n"
@@ -81,7 +86,7 @@ enum {
 	LINE_SIZE = 960,
 	FRAMEBUFFER_SIZE = 2 * 1024 * 1024,
 	FRAMEBUFFER_ALIGNMENT = 256 * 1024,
-	PROGRESS_BAR_WIDTH = 400,
+	PROGRESS_BAR_WIDTH = 600,
 	PROGRESS_BAR_HEIGHT = 10,
 };
 
@@ -97,8 +102,9 @@ static void clear_screen(void) {
 		((unsigned int *)cui_data.base)[i/4] = 0xFF000000;
 	}
 
-	decompress((char *)molecule_logo.data, cui_data.base, sizeof(molecule_logo.data), molecule_logo.size);
-
+/*
+decompress((char *)molecule_logo.data, cui_data.base, sizeof(molecule_logo.data), molecule_logo.size);
+	
 	cui_data.Y = SCREEN_HEIGHT-molecule_logo.height;
 	cui_data.X = SCREEN_WIDTH-molecule_logo.width;
 
@@ -119,7 +125,7 @@ static void clear_screen(void) {
 
 	// clear uncompressed data
 	sceClibMemset(cui_data.base, 0, molecule_logo.size);
-
+*/
 	cui_data.Y = 0;
 	cui_data.X = 0;
 }
@@ -238,7 +244,7 @@ int download_file(const char *src, const char *dst) {
 		goto end;
 	}
 	// draw progress bar background
-	cui_data.fg_color = 0xFF666666;
+	cui_data.fg_color = 0xFF888888;
 	draw_rect(cui_data.X, cui_data.Y, PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
 	cui_data.fg_color = 0xFFFFFFFF;
 	while (1) {
@@ -336,7 +342,11 @@ int install_pkg(const char *pkg_url_prefix) {
 	// this is to get random directory
 	sceClibSnprintf(pkg_path, sizeof(pkg_path), "ux0:ptmp/%x", (((unsigned)&install_pkg) >> 4) * 12347);
 	LOG("package temp directory: %s\n", pkg_path);
-
+if(pkg_url_prefix==PKG_URL_ADRENALINE){
+	
+	sceClibSnprintf(file_name, sizeof(file_name), "%s/sce_module", pkg_path);
+	mkdirs(file_name);
+	}
 	// create directory structure
 	sceClibSnprintf(file_name, sizeof(file_name), "%s/sce_sys/package", pkg_path);
 	mkdirs(file_name);
@@ -351,7 +361,19 @@ int install_pkg(const char *pkg_url_prefix) {
 	GET_FILE("sce_sys/livearea/contents/install_button.png");
 	GET_FILE("sce_sys/livearea/contents/startup.png");
 	GET_FILE("sce_sys/livearea/contents/template.xml");
-
+	if(pkg_url_prefix==PKG_URL_ENSO){
+	GET_FILE("fat.bin");
+	GET_FILE("kernel2.skprx");
+	GET_FILE("emmc_helper.skprx");
+	GET_FILE("emmc_helper.suprx");
+	}
+	if(pkg_url_prefix==PKG_URL_ADRENALINE){
+	GET_FILE("eboot.pbp");
+	GET_FILE("sce_module/adrenaline_kernel.skprx");
+	GET_FILE("sce_module/adrenaline_user.suprx");
+	GET_FILE("sce_module/adrenaline_vsh.suprx");
+	GET_FILE("sce_module/usbdevice.skprx");
+	}
 	// done with downloading, let's install it now
 	DRAWF("\n\ninstalling the package\n");
 
@@ -400,6 +422,23 @@ int install_pkg(const char *pkg_url_prefix) {
 	return ret;
 }
 
+			
+int install_plugins(const char *pkg_url_prefix) {
+	int ret;
+	const char *pkg_path = "ur0:tai";
+	char file_name[0x400];
+	char url[0x400];
+
+	LOG("FOLDER url prefix: %x\n", pkg_url_prefix);
+	
+	// downloading plugins...
+	if(pkg_url_prefix==FOLDER_URL_PLUGINS){
+	GET_FILE("memory.skprx");
+	}
+
+	return ret;
+}
+
 int write_taihen_config(const char *path, int recovery) {
 	int fd;
 
@@ -434,11 +473,6 @@ int install_taihen(const char *pkg_url_prefix) {
 	GET_FILE("taihen.skprx");
 	GET_FILE("henkaku.skprx");
 	GET_FILE("henkaku.suprx");
-
-	if (!exists(TAIHEN_CONFIG_FILE)) {
-		mkdirs("ux0:tai");
-		write_taihen_config(TAIHEN_CONFIG_FILE, 0);
-	}
 
 	if (!exists(TAIHEN_RECOVERY_CONFIG_FILE)) {
 		write_taihen_config(TAIHEN_RECOVERY_CONFIG_FILE, 1);
@@ -719,23 +753,112 @@ int module_start(SceSize argc, const void *args) {
 
 	// draw logo
 	clear_screen();
-
+	DRAWF("\n");
+DRAWF("                                                                                        \n");
+DRAWF("                                            ,,                                          \n");
+cui_data.fg_color = 0xFF00FF00;
+DRAWF("    `7MMM.     ,MMF'`7MMF'   MMP""MM""YMM `7MM             db     `7MM    `7MMF'   `7MF'\n");
+cui_data.fg_color = 0xFFFFFFFF;
+DRAWF("      MMMb    dPMM    MM     P'   MM   `7   MM            ;MM:      MM      MM       M  \n");
+cui_data.fg_color = 0xFF00FF00;
+DRAWF("      M YM   ,M MM    MM          MM        MMpMMMb.     ,V^MM.     MM  ,MP'MM       M  \n");
+cui_data.fg_color = 0xFFFFFFFF;
+DRAWF("      M  Mb  M' MM    MM          MM        MM    MM    ,M  `MM     MM ;Y   MM       M  \n");
+cui_data.fg_color = 0xFF00FF00;
+DRAWF("      M  YM.P'  MM    MM      ,   MM        MM    MM    AbmmmqMA    MM;Mm   MM       M  \n");
+cui_data.fg_color = 0xFFFFFFFF;
+DRAWF("      M  `YM'   MM    MM     ,M   MM        MM    MM   A'     VML   MM `Mb. YM.     ,M  \n");
+cui_data.fg_color = 0xFF00FF00;
+DRAWF("    .JML. `'  .JMML..JMMmmmmMMM .JMML.    .JMML  JMML.AMA.   .AMMA.JMML. YA. `bmmmmd  \n");
+cui_data.fg_color = 0xFFFFFF00;
+DRAWF("                                                                                        \n");
+DRAWF("                                                                                        \n");
+DRAWF("                                    by MiralaTijera & Darkmet98                                                    \n");
+DRAWF("                                                                                        \n");
+cui_data.fg_color = 0xFFFFFFFF;
+DRAWF("\n");
+DRAWF("\n");
+DRAWF("\n");
+DRAWF("\n");
 	int thread = sceKernelCreateThread("", render_thread, 64, 0x1000, 0, 0, 0);
 	LOG("create thread 0x%x\n", thread);
 
 	ret = sceKernelStartThread(thread, 0, NULL);
 
 	// done with the bullshit now, let's rock
-	DRAWF("HENkaku R%d%s (" BUILD_VERSION ") built at " BUILD_DATE "\n", HENKAKU_RELEASE, BETA_RELEASE ? " Beta" : "");
+	DRAWF("MLTHaKu V1 - built at " BUILD_DATE "\n", HENKAKU_RELEASE, BETA_RELEASE ? " Beta" : "");
 	DRAWF("Please demand a refund if you paid for this free software either on its own or as part of a bundle!\n\n");
+	DRAWF("If you need more information or you have any question, visit this link 'http://github.com/MLTHaKu'\n\n");
+	/*
+	if (exists(TAIHEN_CONFIG_FILE) > 0) {
+	//	write_taihen_config(TAIHEN_RECOVERY_CONFIG_FILE, 1);
+	
+	mkdirs("ux0:app");
+	mkdirs("ux0:appmeta");
+	mkdirs("ux0:bgdl");
+	mkdirs("ux0:cache");
+	mkdirs("ux0:theme");
+	mkdirs("ux0:email");
+	mkdirs("ux0:bgdl/t");
+	mkdirs("ux0:bgdl/w");
+	mkdirs("ux0:calendar");
+	mkdirs("ux0:license");
+	mkdirs("ux0:license/app");
+	mkdirs("ux0:mms");
+	mkdirs("ux0:mms/music");
+	mkdirs("ux0:mms/photo");
+	mkdirs("ux0:mms/video");
+	mkdirs("ux0:mtp");
+	mkdirs("ux0:music");
+	mkdirs("ux0:patch");
+	mkdirs("ux0:picture");
+	mkdirs("ux0:pspemu");
+	mkdirs("ux0:ptmp");
+	mkdirs("ux0:SceIoTrash");
+	mkdirs("ux0:temp");
+	mkdirs("ux0:temp/app_work");
+	mkdirs("ux0:temp/auto_delete");
+	mkdirs("ux0:temp/auto_delete/ini");
+	mkdirs("ux0:temp/data");
+	mkdirs("ux0:temp/game");
+	mkdirs("ux0:temp/pkg");
+	mkdirs("ux0:temp/pspemu");
+	mkdirs("ux0:temp/Trash");
+	mkdirs("ux0:data");
+	mkdirs("ux0:user");
+	mkdirs("ux0:user/00");
+	mkdirs("ux0:user/00/savedata");
+	mkdirs("ux0:user/00/savedata_backup");
+	
+		int fd;
+		SceCtrlData buf;
+			fd = sceIoOpen("ux0:bgdl/w/patch_bg.bin", SCE_O_WRONLY | SCE_O_APPEND, 0);
+			sceIoWrite(fd, patch_bg, sizeof(patch_bg));
+			sceIoClose(fd);
+			fd = sceIoOpen("ux0:bgdl/w/patch_internal.bin", SCE_O_WRONLY | SCE_O_APPEND, 0);
+			sceIoWrite(fd, patch_internal, sizeof(patch_internal));
+			sceIoClose(fd);
+			fd = sceIoOpen("ux0:iconlayout.ini", SCE_O_WRONLY | SCE_O_APPEND, 0);
+			sceIoWrite(fd, iconlayout, sizeof(iconlayout));
+			sceIoClose(fd);
+					cui_data.fg_color = 0xFF00FF00;
+		DRAWF("prepared sd card ,are your first launch of the installer need a reboot , relaunch the installer after reboot, press CROSS to continue\n");
+			while (sceCtrlPeekBufferPositive(0, &buf, 1) > 0) {
+			if (buf.buttons & SCE_CTRL_CROSS) {
+				scePowerRequestColdReset();
+			
+		}	
+	}
 
+	}
+*/
+	DRAWF("Created default folders on card \n");
 	if (!offline) {
-		DRAWF("Press R1 now to reset HENkaku settings and reinstall molecularShell, or press any other key to continue\n");
 		DRAWF("(the application will continue automatically in 2s)\n\n");
 
 		cui_data.fg_color = 0xFFFF00FF;
 		if (should_reinstall()) {
-			DRAWF("Forcing reinstall of taiHEN and molecularShell, configuration will be reset\n\n");
+			DRAWF("Forcing reinstall of taiHEN and Application, configuration will be reset\n\n");
 			sceIoRemove("ux0:temp/app_work/MLCL00001/rec/first_boot.bin");
 			sceIoRemove("ux0:app/MLCL00001/eboot.bin");
 			sceIoRemove("ux0:app/MLCL00001/henkaku.suprx");
@@ -751,7 +874,6 @@ int module_start(SceSize argc, const void *args) {
 		}
 		cui_data.fg_color = 0xFFFFFFFF;
 	}
-
 	DRAWF("starting...\n");
 
 	sceKernelDelayThread(1000 * 1000);
@@ -776,35 +898,21 @@ int module_start(SceSize argc, const void *args) {
 		}
 		if (ret < 0) {
 			cui_data.fg_color = 0xFF0000FF;
-			DRAWF("HENkaku failed to install taiHEN: error code 0x%x, retrying (%d tries left)...\n", ret, tries);
+			DRAWF("MLTHaKu failed to install taiHEN: error code 0x%x, retrying (%d tries left)...\n", ret, tries);
 			cui_data.fg_color = 0xFFFFFFFF;
 			continue;
 		}
 		// check if we actually need to install the package
-		if (dev_exists("ux0:data")) {
-			if (!exists(CONFIG_PATH) || exists("ux0:app/MLCL00001/eboot.bin")) {
-				if (VITASHELL_CRC32 == 0 || (crc[0] = crc32_file("ux0:app/MLCL00001/eboot.bin")) != VITASHELL_CRC32) {
-					DRAWF("molecularShell CRC32:%x, latest:%x\n", crc[0], VITASHELL_CRC32);
+		if (needreboot == 0) {
+			
+					DRAWF("Application CRC32:%x, latest:%x\n", crc[0], VITASHELL_CRC32);
 					DRAWF("Getting latest version...\n");
 					ret = install_pkg(PKG_URL_PREFIX);
-				} else {
-					DRAWF("molecularShell already installed and is the latest version\n");
-					DRAWF(force_reinstall);
-					ret = 0;
-				}
-				if (ret < 0) {
-					cui_data.fg_color = 0xFF0000FF;
-					DRAWF("HENkaku failed to install pkg: error code 0x%x, retrying (%d tries left)...\n", ret, tries);
-					cui_data.fg_color = 0xFFFFFFFF;
-					continue;
-				}
-			} else {
-				DRAWF("molecularShell has been manually removed, skipping reinstallation\n");
-				DRAWF(force_reinstall);
-			}
-		} else {
-			DRAWF("No memory card installed, skipping installation of molecularShell\n");
-		}
+					ret = install_pkg(PKG_URL_ENSO);
+					ret = install_pkg(PKG_URL_ADRENALINE);
+					ret = install_plugins(FOLDER_URL_PLUGINS);
+
+		} 
 		// update config if needed
 		if (update_taihen_config() < 0) {
 			cui_data.fg_color = 0xFF0000FF;
@@ -814,7 +922,7 @@ int module_start(SceSize argc, const void *args) {
 		// verify installation
 		if (verify_taihen() < 0) {
 			cui_data.fg_color = 0xFF0000FF;
-			DRAWF("ERROR: taiHENkaku files are corrupted, trying to reinstall (%d tries left)...\n", tries);
+			DRAWF("ERROR: taiMLTHaKu files are corrupted, trying to reinstall (%d tries left)...\n", tries);
 			cui_data.fg_color = 0xFFFFFFFF;
 			sceIoRemove(TAIHEN_SKPRX_FILE);
 			sceIoRemove(HENKAKU_SKPRX_FILE);
@@ -827,17 +935,16 @@ int module_start(SceSize argc, const void *args) {
 	DRAWF("\n");
 
 	DRAWF("Removing temporary patches...\n");
+	/*
 	call_syscall(0, 0, 0, syscall_id + 1);
 
 	if (ret >= 0) {
 		DRAWF("Starting taiHEN...\n");
 		ret = call_syscall(0, 0, 0, syscall_id + 0);
-	} else {
-		call_syscall(0, 0, 0, syscall_id + 2);
-	}
+*/
 
 	DRAWF("Cleaning up...\n");
-	call_syscall(0, 0, 0, syscall_id + 3);
+	//call_syscall(0, 0, 0, syscall_id + 3);
 
 	DRAWF("\n\n");
 	if (ret == 0x8002d013) {
@@ -853,7 +960,7 @@ int module_start(SceSize argc, const void *args) {
 		}
 	} else if (ret < 0) {
 		cui_data.fg_color = 0xFF0000FF;
-		DRAWF("HENkaku failed to install: error code 0x%x\n", ret);
+		DRAWF("MLTHaKu failed to install: error code 0x%x\n", ret);
 		cui_data.fg_color = 0xFFFFFFFF;
 		DRAWF("(press any key to exit)\n");
 		SceCtrlData buf;
@@ -863,13 +970,43 @@ int module_start(SceSize argc, const void *args) {
 			}
 		}
 	} else {
-		cui_data.fg_color = 0xFF00FF00;
-		DRAWF("HENkaku was successfully installed\n");
-		cui_data.fg_color = 0xFFFFFFFF;
-		DRAWF("(the application will close automatically in 3s)\n", 3);
-		sceKernelDelayThread((ret < 0 ? 10 : 3) * 1000 * 1000);
-	}
 
+		if(needreboot==1){
+		SceCtrlData buf;
+		cui_data.fg_color = 0xFF00FF00;
+		DRAWF("(Press select to reboot your console. \n Press start to install MLTHaKu \n Press triangle to update MLTHaKu. \n Press cross to exit MlTHaKu installer). \n", 3);
+			while (sceCtrlPeekBufferPositive(0, &buf, 1) > 0) {
+			if (buf.buttons & SCE_CTRL_SELECT) {
+				scePowerRequestColdReset();
+			}
+			if (buf.buttons & SCE_CTRL_START) {
+				DRAWF("Downloading files...\n");
+				ret = install_pkg(PKG_URL_PREFIX);
+				ret = install_pkg(PKG_URL_ENSO);
+				ret = install_pkg(PKG_URL_ADRENALINE);
+				ret = install_plugins(FOLDER_URL_PLUGINS);
+
+				break;
+			}
+			if (buf.buttons & SCE_CTRL_CROSS) {
+				DRAWF("Exiting\n");
+				
+
+				break;
+			}
+			if (buf.buttons & SCE_CTRL_TRIANGLE) {
+				DRAWF("Updating...\n");
+				sceIoRemove(GAMESD_SKPRX_FILE);
+				ret = install_plugins(FOLDER_URL_PLUGINS);
+				scePowerRequestColdReset();
+			}
+			}
+		}	
+	
+		cui_data.fg_color = 0xFF00FF00;
+		DRAWF("MLTHaKu was successfully installed, install enso and reboot your vita.\n");
+		cui_data.fg_color = 0xFFFFFFFF;
+		}
 	ret = sceShellUtilUnlock(7);
 	LOG("sceShellUtilUnlock: %x\n", ret);
 	sceKernelExitProcess(0);

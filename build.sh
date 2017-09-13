@@ -14,9 +14,9 @@ fi
 
 source $1
 
-if [ -z "$RELEASE" ] || [ -z "$PKG_URL_PREFIX" ] || [ -z "$HENKAKU_BIN_URL" ] || [ -z "$VITASHELL_CRC32" ] || [ -z "$TAIHEN_CRC32" ] || [ -z "$HENKAKU_RELEASE" ]; then
+if [ -z "$RELEASE" ] || [ -z "$PKG_URL_PREFIX" ] || [ -z "$PKG_URL_ENSO" ]|| [ -z "$PKG_URL_ADRENALINE" ] || [ -z "$FOLDER_URL_PLUGINS" ] || [ -z "$HENKAKU_BIN_URL" ] || [ -z "$VITASHELL_CRC32" ] || [ -z "$TAIHEN_CRC32" ] || [ -z "$HENKAKU_RELEASE" ]; then
 	echo "Please make sure all of the following variables are defined in your config file:"
-	echo "RELEASE, PKG_URL_PREFIX, HENKAKU_BIN_URL, VITASHELL_CRC32, TAIHEN_CRC32, HENKAKU_RELEASE"
+	echo "RELEASE, PKG_URL_PREFIX,PKG_URL_ENSO,PKG_URL_ADRENALINE, FOLDER_URL_PLUGINS, HENKAKU_BIN_URL, VITASHELL_CRC32, TAIHEN_CRC32, HENKAKU_RELEASE"
 	echo "(see sample.config.in for an example)"
 	exit 2
 fi
@@ -42,6 +42,9 @@ BUILD_DATE=$(date)
 echo "#define BUILD_VERSION \"$BUILD_VERSION\"" >> build/version.c
 echo "#define BUILD_DATE \"$BUILD_DATE\"" >> build/version.c
 echo "#define PKG_URL_PREFIX \"$PKG_URL_PREFIX\"" >> build/version.c
+echo "#define PKG_URL_ENSO \"$PKG_URL_ENSO\"" >> build/version.c
+echo "#define PKG_URL_ADRENALINE \"$PKG_URL_ADRENALINE\"" >> build/version.c
+echo "#define FOLDER_URL_PLUGINS \"$FOLDER_URL_PLUGINS\"" >> build/version.c
 echo "#define HENKAKU_RELEASE $HENKAKU_RELEASE" >> build/version.c
 echo "#define BETA_RELEASE $BETA_RELEASE" >> build/version.c
 echo "#define VITASHELL_CRC32 $VITASHELL_CRC32" >> build/version.c

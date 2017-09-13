@@ -18,7 +18,7 @@ include_directories(
 )
 
 link_directories(
-  ${CMAKE_CURRENT_BINARY_DIR}/henkaku-stubs
+  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 if (NOT ${RELEASE})
@@ -76,8 +76,6 @@ target_link_libraries(kernel
   SceModulemgrForKernel_stub
   SceThreadmgrForDriver_stub
 )
-
-add_dependencies(user henkaku-stubs)
 
 set_target_properties(kernel
   PROPERTIES LINK_FLAGS "-nostdlib"

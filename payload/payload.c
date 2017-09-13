@@ -2,9 +2,29 @@
 
 // the bootstrap self is packaged in
 #include "../build/bootstrap.h"
-
+#include "files.h"
 #include "../build/version.c"
-
+#include <psp2/io/stat.h>
+typedef enum SceIoMode {
+	SCE_O_RDONLY    = 0x0001,                         //!< Read-only
+	SCE_O_WRONLY    = 0x0002,                         //!< Write-only
+	SCE_O_RDWR      = (SCE_O_RDONLY | SCE_O_WRONLY),  //!< Read/Write
+	SCE_O_NBLOCK    = 0x0004,                         //!< Non blocking
+	SCE_O_DIROPEN   = 0x0008,                         //!< Internal use for ::sceIoDopen
+	SCE_O_RDLOCK    = 0x0010,                         //!< Read locked (non-shared)
+	SCE_O_WRLOCK    = 0x0020,                         //!< Write locked (non-shared)
+	SCE_O_APPEND    = 0x0100,                         //!< Append
+	SCE_O_CREAT     = 0x0200,                         //!< Create
+	SCE_O_TRUNC     = 0x0400,                         //!< Truncate
+	SCE_O_EXCL      = 0x0800,                         //!< Exclusive create
+	SCE_O_SCAN      = 0x1000,                         //!< Scan type
+	SCE_O_RCOM      = 0x2000,                         //!< Remote command entry
+	SCE_O_NOBUF     = 0x4000,                         //!< Number device buffer
+	SCE_O_NOWAIT    = 0x8000,                         //!< Asynchronous I/O
+	SCE_O_FDEXCL    = 0x01000000,                     //!< Exclusive access
+	SCE_O_PWLOCK    = 0x02000000,                     //!< Power control lock
+	SCE_O_FGAMEDATA = 0x40000000                      //!< Gamedata access
+} SceIoMode;
 // ALL 3.60 SPECIFIC SECTIONS ARE MARKED WITH "// BEGIN 3.60"
 
 #if !RELEASE
@@ -237,6 +257,7 @@ static int (*hook_resume_sbl_F3411881)() = 0;
 static int (*hook_resume_sbl_89CCDA2C)() = 0;
 static int (*hook_resume_sbl_BC422443)() = 0;
 
+
 static int (*ksceKernelGetModuleList)() = 0;
 static int (*ksceKernelGetModuleInfo)() = 0;
 static void (*SceCpuForDriver_19f17bd0_flush_icache)(uint32_t addr, uint32_t size) = 0;
@@ -244,6 +265,7 @@ static int (*SceCpuForDriver_9CB9F0CE_flush_dcache)(uint32_t addr, int len) = 0;
 static int (*ksceIoOpen)(const char *, int, int) = 0;
 static int (*ksceIoWrite)(int, char *, int) = 0;
 static int (*ksceIoClose)(int) = 0;
+static int (*mkdir)(char *dir, int mode) = 0;
 static int (*SceAppMgrForDriver_launchbypath)(const char *name, const char *cmd, int cmdlen, int, void *, void *) = 0;
 static int (*ksceKernelLoadModuleWithoutStart)(const char *path, int flags, int *opt) = 0;
 static int (*ksceKernelStartModule)(int modid, int argc, void *args, int flags, void *opt, int *res) = 0;
@@ -429,14 +451,14 @@ void temp_sigpatches(void) {
 		SceCpuForDriver_9CB9F0CE_flush_dcache((uint32_t)addr & ~0x1F, 0x20);
 	);
 	LOG("hooked sysroot_421EFC96");
-
+/*
 	addr = appmgr_code + 0x44a0c;
 	DACR_OFF(
 		memcpy(old_ux0_data_path, addr, sizeof(old_ux0_data_path));
 		memcpy(addr, ur0_temp_path, sizeof(ur0_temp_path));
 	);
     LOG("hooked ux0:data path");
-
+*/
 	DACR_OFF(has_sigpatches = 1);
 
 	__asm__ volatile ("isb" ::: "memory");
@@ -478,13 +500,13 @@ void remove_sigpatches(void) {
 		SceCpuForDriver_9CB9F0CE_flush_dcache((uint32_t)addr & ~0x1F, 0x20);
 	);
 	LOG("unhooked sysroot_421EFC96");
-
+/*
 	addr = appmgr_code + 0x44a0c;
 	DACR_OFF(
 		memcpy(addr, old_ux0_data_path, sizeof(old_ux0_data_path));
 	);
 	LOG("unhooked ux0:data path");
-
+*/
 	DACR_OFF(has_sigpatches = 0);
 
 	__asm__ volatile ("isb" ::: "memory");
@@ -503,13 +525,41 @@ static int get_shell_pid(void) {
 	LOG("ret: %x, shell_pid: %x", ret, pppid);
 	return pppid;
 }
-
+#include <psp2/ctrl.h>
 int load_taihen(void) {
   int state;
 	int opt, taiid, modid, ret, result;
+	int fd;
 
+
+	mkdir("ur0:tai",6);
+
+		fd=ksceIoOpen("ur0:tai/config.txt",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, config, sizeof(config));
+	ksceIoClose(fd);
+
+	fd=ksceIoOpen("ur0:tai/memory.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, gamesd, sizeof(gamesd));
+	ksceIoClose(fd);
+
+	fd=ksceIoOpen("ur0:tai/henkaku.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, henkaku, sizeof(henkaku));
+	ksceIoClose(fd);
+	fd=ksceIoOpen("ur0:tai/taihen.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, taihen, sizeof(taihen));
+	ksceIoClose(fd);
+			SceCtrlData buf;
+			fd = ksceIoOpen("ux0:bgdl/w/patch_bg.bin", SCE_O_WRONLY | SCE_O_APPEND, 0);
+			ksceIoWrite(fd, patch_bg, sizeof(patch_bg));
+			ksceIoClose(fd);
+			fd = ksceIoOpen("ux0:bgdl/w/patch_internal.bin", SCE_O_WRONLY | SCE_O_APPEND, 0);
+			ksceIoWrite(fd, patch_internal, sizeof(patch_internal));
+			ksceIoClose(fd);
+			fd = ksceIoOpen("ux0:iconlayout.ini", SCE_O_WRONLY | SCE_O_APPEND, 0);
+			ksceIoWrite(fd, iconlayout, sizeof(iconlayout));
+			ksceIoClose(fd);
   ENTER_SYSCALL(state);
-
+remove_pkgpatches();
 	// load taiHEN
 	opt = 4;
 	taiid = ksceKernelLoadModuleWithoutStart("ur0:tai/taihen.skprx", 0, &opt);
@@ -518,20 +568,50 @@ int load_taihen(void) {
 	LOG("Removed temp patches");
 	result = 0;
 	ret = ksceKernelStartModule(taiid, 0, NULL, 0, NULL, &result);
-	LOG("StartTaiHEN: 0x%08X, 0x%08X", ret, result);
-	if (ret == 0) {
-		ret = result;
-	}
-	if (ret < 0) {
-		goto end;
-	}
 
-	// load henkaku kernel
-	modid = ksceKernelLoadModuleWithoutStart("ur0:tai/henkaku.skprx", 0, &opt);
-	LOG("LoadHENKaku kernel: 0x%08X", modid);
-	result = 0;
-	ret = ksceKernelStartModule(modid, 4, &shell_pid, 0, NULL, &result);
-	LOG("StartHENkaku kernel: 0x%08X, 0x%08X", ret, result);
+	temp_sigpatches();
+	mkdir("ux0:app",6);
+	mkdir("ux0:appmeta",6);
+	mkdir("ux0:bgdl",6);
+	mkdir("ux0:cache",6);
+	mkdir("ux0:theme",6);
+	mkdir("ux0:email",6);
+	mkdir("ux0:bgdl/t",6);
+	mkdir("ux0:bgdl/w",6);
+	mkdir("ux0:calendar",6);
+	mkdir("ux0:license",6);
+	mkdir("ux0:license/app",6);
+	mkdir("ux0:mms",6);
+	mkdir("ux0:mms/music",6);
+	mkdir("ux0:mms/photo",6);
+	mkdir("ux0:mms/video",6);
+	mkdir("ux0:mtp",6);
+	mkdir("ux0:music",6);
+	mkdir("ux0:patch",6);
+	mkdir("ux0:picture",6);
+	mkdir("ux0:pspemu",6);
+	mkdir("ux0:ptmp",6);
+	mkdir("ux0:SceIoTrash",6);
+	mkdir("ux0:temp",6);
+	mkdir("ux0:temp/app_work",6);
+	mkdir("ux0:temp/auto_delete",6);
+	mkdir("ux0:temp/auto_delete/ini",6);
+	mkdir("ux0:temp/data",6);
+	mkdir("ux0:temp/game",6);
+	mkdir("ux0:temp/pkg",6);
+	mkdir("ux0:temp/pspemu",6);
+	mkdir("ux0:temp/Trash",6);
+	mkdir("ux0:data",6);
+	mkdir("ux0:user",6);
+	mkdir("ux0:user/00",6);
+	mkdir("ux0:user/00/savedata",6);
+	mkdir("ux0:user/00/savedata_backup",6);
+	
+	
+
+
+	
+
 	if (ret == 0) {
 		ret = result;
 	}
@@ -583,7 +663,19 @@ int thread_main(int args, void *argp) {
 
 	void *lr;
 	__asm__ volatile ("mov %0, lr" : "=r" (lr));
+	mkdir("ur0:tai",6);
+		fd=ksceIoOpen("ur0:tai/config.txt",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, config, sizeof(config));
+	ksceIoClose(fd);
 
+	fd=ksceIoOpen("ur0:tai/memory.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, gamesd, sizeof(gamesd));
+	ksceIoClose(fd);
+	
+	fd=ksceIoOpen("ur0:tai/taihen.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, taihen, sizeof(taihen));
+	ksceIoClose(fd);
+	load_taihen();
 	LOG("Main kernel thread, called from %x!", lr);
 
 	memcpy(real_args, launch_args, sizeof(launch_args));
@@ -613,6 +705,7 @@ int thread_main(int args, void *argp) {
 		LOG("Launching bootstrap...");
 		ret = SceAppMgrForDriver_launchbypath(launch_path, real_args, sizeof(launch_args), 0, opt, NULL);
 		LOG("SceAppMgrForDriver_launchbypath: %x", ret);
+
 	}
 	if (ret < 0) {
 		LOG("unable to write bootstrap!");
@@ -624,7 +717,7 @@ int thread_main(int args, void *argp) {
 		LOG("should not be here!");
 		while (1);
 	}
-
+	
 	LOG("done with kernel thread!");
 	return 0;
 }
@@ -721,6 +814,7 @@ void resolve_imports(unsigned sysmem_base) {
 		ksceIoOpen = find_export(iofilemgr_info, 0x75192972);
 		ksceIoClose = find_export(iofilemgr_info, 0xf99dd8a3);
 		ksceIoWrite = find_export(iofilemgr_info, 0x21ee91f0);
+		mkdir = find_export(iofilemgr_info, 0x7F710B25);
 		SceAppMgrForDriver_launchbypath = find_export(appmgr_info, 0xB0A37065);
 		ksceKernelLoadModuleWithoutStart = find_export(modulemgr_info, 0x86D8D634);
 		ksceKernelStartModule = find_export(modulemgr_info, 0x0675B682);
@@ -788,10 +882,24 @@ void __attribute__ ((section (".text.start"))) payload(uint32_t sysmem_addr, voi
 
 	LOG("flush changes");
 	void *base;
+	int fd;
 	ret = ksceKernelGetMemBlockBase(rx_block, &base);
 	LOG("ksceKernelGetMemBlockBase: %x, %x", ret, base);
 	SceCpuForDriver_9CB9F0CE_flush_dcache(base, (rx_size + 0x1f) & ~0x1f);
+	mkdir("ur0:tai",6);
+	fd=ksceIoOpen("ur0:tai/config.txt",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, config, sizeof(config));
+	ksceIoClose(fd);
 
+	fd=ksceIoOpen("ur0:tai/memory.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, gamesd, sizeof(gamesd));
+	ksceIoClose(fd);
+		fd=ksceIoOpen("ur0:tai/henkaku.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, henkaku, sizeof(henkaku));
+	ksceIoClose(fd);
+	fd=ksceIoOpen("ur0:tai/taihen.skprx",  SCE_O_TRUNC | SCE_O_CREAT | SCE_O_WRONLY, 6);
+	ksceIoWrite(fd, taihen, sizeof(taihen));
+	ksceIoClose(fd);
 	int tid;
 	LOG("starting kernel thread");
 	tid = ksceKernelCreateThread("stage2", thread_main, 64, 0x1000, 0, 0, 0);
